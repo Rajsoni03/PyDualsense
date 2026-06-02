@@ -147,7 +147,7 @@ ds.disconnect()
 ```python
 def on_state(state):
     for finger in state.touchpad.active_fingers:
-        # x: 0–1919,  y: 0–943
+        # x: 0–1919,  y: 0–1079
         print(f"Finger {finger.id}: ({finger.x}, {finger.y})")
 
     if state.buttons.touchpad_click:

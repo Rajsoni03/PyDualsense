@@ -153,7 +153,7 @@ python examples/led_colors.py
 ## `touchpad_viz.py` — ASCII finger position visualiser
 
 Renders a live ASCII box to the terminal that shows up to two finger positions
-scaled from the 1920 × 943 touchpad to the terminal width × 20 rows.
+scaled from the 1920 × 1080 touchpad to the terminal width × 20 rows.
 
 **Sample output:**
 ```

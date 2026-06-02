@@ -87,7 +87,7 @@ class TouchFinger:
     active: bool = False
     id: int = 0
     x: int = 0    # 0–1919
-    y: int = 0    # 0–943
+    y: int = 0    # 0–1079
 
 
 @dataclass
@@ -148,7 +148,7 @@ def _parse_touch_finger(data: bytes, offset: int) -> TouchFinger:
     finger_id = contact & 0x7F
 
     x = x_lo | ((x_hi_y_lo & 0x0F) << 8)       # 12-bit X
-    y = ((x_hi_y_lo >> 4) & 0x0F) | (y_hi << 4) # 12-bit Y (ish; max 943)
+    y = ((x_hi_y_lo >> 4) & 0x0F) | (y_hi << 4) # 12-bit Y (ish; max 1079)
 
     return TouchFinger(active=active, id=finger_id, x=x, y=y)
 

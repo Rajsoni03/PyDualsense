@@ -281,7 +281,7 @@ f = state.touchpad.finger0
 f.active                          # bool
 f.id                              # int (tracking ID)
 f.x                               # 0–1919
-f.y                               # 0–943
+f.y                               # 0–1079
 
 state.buttons.touchpad_click      # physical press
 ```

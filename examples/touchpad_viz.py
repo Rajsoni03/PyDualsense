@@ -2,7 +2,7 @@
 """
 touchpad_viz.py — Live ASCII visualisation of touchpad finger positions.
 
-Touchpad resolution: 1920 × 943.  Scaled to terminal width × 20 rows.
+Touchpad resolution: 1920 × 1080.  Scaled to terminal width × 20 rows.
 """
 
 import sys, os, shutil
@@ -14,7 +14,7 @@ from pydualsense.protocol.input_report import InputState
 COLS, _ = shutil.get_terminal_size()
 COLS = min(COLS - 2, 80)
 ROWS = 20
-TP_W, TP_H = 1920, 943
+TP_W, TP_H = 1920, 1080
 
 
 def render(state: InputState):

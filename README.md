@@ -15,7 +15,7 @@ OS-agnostic API built on `hidapi`.
 | **Input**          | Analog sticks (L/R), triggers (L2/R2 analog + digital)               |
 |                    | 15 buttons (face, shoulder, L3/R3, PS, mute, touchpad click)         |
 |                    | D-pad (8 directions + neutral)                                        |
-|                    | Dual-finger capacitive touchpad (1920 × 943, per-finger tracking)    |
+|                    | Dual-finger capacitive touchpad (1920 × 1080, per-finger tracking)    |
 |                    | Gyroscope X/Y/Z + Accelerometer X/Y/Z (ICM-42688-P IMU)             |
 |                    | Battery level (%) + charging status                                   |
 | **Output**         | ERM rumble motors (left = large/LF, right = small/HF, 0–255 each)   |

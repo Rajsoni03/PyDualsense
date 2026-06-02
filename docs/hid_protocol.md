@@ -109,7 +109,7 @@ Byte 2  [7:4]  = Y coordinate low 4 bits
 Byte 3         = Y coordinate high 8 bits
 
 X = Byte1 | (Byte2[3:0] << 8)   range 0–1919
-Y = Byte2[7:4] | (Byte3 << 4)   range 0–943
+Y = Byte2[7:4] | (Byte3 << 4)   range 0–1079
 ```
 
 ### Battery encoding — byte 43
