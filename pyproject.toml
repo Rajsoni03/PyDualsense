@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "pydualsense"
+version = "0.1.0"
+description = "Python library for PS5 DualSense controller over Bluetooth and USB"
+requires-python = ">=3.8"
+dependencies = ["hid"]
+
+[project.optional-dependencies]
+dev = ["pytest", "numpy"]
+numpy = ["numpy"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pydualsense*"]
