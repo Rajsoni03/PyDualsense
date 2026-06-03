@@ -39,7 +39,7 @@ def main():
         for name, effect in DEMOS:
             ds.set_trigger_effect("right", effect)
             ds.set_trigger_effect("left",  effect)
-            wait(2.0, name)
+            wait(5.0, name)
 
         ds.set_trigger_off()
         print("\nAll done.")

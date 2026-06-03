@@ -41,37 +41,49 @@ FLAG0_SPEAKER_VOLUME       = 0x20   # Update speaker volume
 FLAG0_MIC_VOLUME           = 0x40   # Update microphone volume
 FLAG0_AUDIO_CONTROL        = 0x80   # Enable audio control fields
 
-# valid_flag1  (byte 3 of output report)
-FLAG1_MIC_MUTE_LED         = 0x01   # Control microphone-mute LED
-FLAG1_POWER_SAVE           = 0x02   # Power-save mode control
+# valid_flag1  (byte 4 of output report)
+# Bit 3 (0x08): when SET the controller returns to its default lightbar colour;
+# when CLEAR the controller uses the RGB values supplied by the host.
+FLAG1_MIC_MUTE_LED         = 0x01   # bit 0 – control mic-mute LED
+FLAG1_POWER_SAVE           = 0x02   # bit 1 – power-save mode
+FLAG1_LIGHTBAR_COLOR       = 0x04   # bit 2 – apply custom lightbar RGB
+FLAG1_LIGHTBAR_DEFAULT     = 0x08   # bit 3 – release to default colour (set=default, clear=custom)
+FLAG1_PLAYER_LEDS          = 0x10   # bit 4 – update player-indicator LEDs
 
 # valid_flag2  (byte 41 of output report)
-FLAG2_LIGHTBAR             = 0x01   # Update light-bar colour
-FLAG2_LED_BRIGHTNESS       = 0x02   # Update LED brightness
-FLAG2_PLAYER_LEDS          = 0x04   # Update player-indicator LEDs
+FLAG2_LED_BRIGHTNESS       = 0x01   # bit 0 – update LED brightness
 
 # Lightbar setup byte  (byte 44 of output report)
-LIGHTBAR_CUSTOM_COLOR = 0x01    # Use custom RGB value
-LIGHTBAR_RELEASE      = 0x02    # Release / return to default
+LIGHTBAR_CUSTOM_COLOR = 0x00    # 0x00 = controlled by FLAG1_LIGHTBAR_COLOR / FLAG1_LIGHTBAR_DEFAULT
+LIGHTBAR_RELEASE      = 0x02    # 0x02 = release / return to default
 
 # ── Adaptive trigger modes ────────────────────────────────────────────────────
 
 class TriggerMode(IntEnum):
     """Adaptive trigger effect modes.
 
-    Each mode occupies byte 0 of the 9-byte trigger-effect block; the
-    remaining 8 bytes carry mode-specific parameters.
+    Hardware modes (0x01–0x26) are the actual bytes written to the trigger
+    mode field.  Logical modes (0xFD–0xFF) are dispatch keys used only by
+    TriggerEffect; the builder functions convert them to the correct hardware
+    bytes internally.
+
+    Simple modes (FEEDBACK / WEAPON / VIBRATION) use plain byte parameters and
+    work reliably across all firmware versions.  FEEDBACK_FULL / WEAPON_FULL /
+    VIBRATION_FULL are the official Sony bit-packed variants used for multi-zone
+    effects.
     """
-    OFF             = 0x00  # No resistance
-    FEEDBACK        = 0x01  # Resistive feedback from a start position
-    WEAPON          = 0x02  # Click/snap at start, rigid beyond
-    VIBRATION       = 0x03  # Vibrating effect at a given frequency
-    SLOPE_FEEDBACK  = 0x04  # Linearly increasing resistance
-    RIGID           = 0x05  # Maximum constant resistance (always on)
-    RIGID_A         = 0x06  # Rigid variant A
-    RIGID_B         = 0x07  # Rigid variant B
-    RIGID_AB        = 0x08  # Rigid combined variant
-    MULTI_POS       = 0x0C  # Resistance at multiple discrete positions
+    # ── Hardware mode bytes (written to trigger block byte 0) ─────────────────
+    OFF            = 0x05  # No effect; trigger returns to neutral position
+    FEEDBACK       = 0x01  # Simple_Feedback: resistive from a start position
+    WEAPON         = 0x02  # Simple_Weapon: click/snap from start to end zone
+    VIBRATION      = 0x06  # Simple_Vibration: vibrate at frequency+amplitude
+    FEEDBACK_FULL  = 0x21  # Official bit-packed Feedback (10-zone activation)
+    WEAPON_FULL    = 0x25  # Official bit-packed Weapon
+    VIBRATION_FULL = 0x26  # Official bit-packed Vibration
+    # ── Logical dispatch keys (not sent as hardware bytes) ────────────────────
+    RIGID          = 0xFD  # Max resistance → FEEDBACK at pos=0, force=255
+    SLOPE_FEEDBACK = 0xFE  # Linear slope   → FEEDBACK_FULL with bit-packing
+    MULTI_POS      = 0xFF  # Multi-zone     → FEEDBACK_FULL with bit-packing
 
 
 # ── D-pad / hat-switch ────────────────────────────────────────────────────────

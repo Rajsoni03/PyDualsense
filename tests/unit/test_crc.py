@@ -7,10 +7,11 @@ from pydualsense.protocol.constants import BT_OUTPUT_REPORT_LEN, BT_OUTPUT_CRC_S
 
 
 def _make_report(**kwargs) -> bytearray:
-    """Return a zeroed 78-byte output report buffer."""
+    """Return a zeroed 78-byte output report buffer with correct header."""
     buf = bytearray(BT_OUTPUT_REPORT_LEN)
-    buf[0] = 0x31
-    buf[1] = 0x10
+    buf[0] = 0x31   # report ID
+    buf[1] = 0x00   # seq byte (0 for first packet)
+    buf[2] = 0x10   # tag
     for k, v in kwargs.items():
         buf[int(k)] = v
     return buf
