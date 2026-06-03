@@ -4,7 +4,7 @@ import struct
 import pytest
 
 from pydualsense.protocol.input_report import parse_bt, parse_input_report, InputState
-from pydualsense.protocol.constants import DPadDirection, BT_INPUT_REPORT_ID
+from pydualsense.protocol.constants import DPadDirection, BT_INPUT_REPORT_ID, BatteryStatus
 
 
 def _make_bt_report(fields: dict = None) -> bytes:
@@ -148,6 +148,37 @@ class TestParseGyroAccel:
         assert state.accel.x == -9000
         assert state.accel.y == 100
         assert state.accel.z == 200
+
+
+class TestParseBattery:
+    def test_discharging_50_percent(self):
+        # Byte 54 (o=2, bat_off=54): status=0x0 (discharging), level=5 → 50%
+        # upper nibble = status, lower nibble = level → 0x05
+        state = parse_bt(_make_bt_report({54: 0x05}))
+        assert state.battery.level == 50
+        assert not state.battery.charging
+
+    def test_charging_80_percent(self):
+        # status=0x1 (charging), level=8 → 80% → byte = 0x18
+        state = parse_bt(_make_bt_report({54: 0x18}))
+        assert state.battery.level == 80
+        assert state.battery.charging
+
+    def test_full_100_percent(self):
+        # status=0x2 (full), level=10 → 100% → byte = 0x2A
+        state = parse_bt(_make_bt_report({54: 0x2A}))
+        assert state.battery.level == 100
+        assert state.battery.full
+
+    def test_zero_byte_is_zero_percent(self):
+        # byte 54 = 0x00 → status=discharging, level=0 → 0%
+        state = parse_bt(_make_bt_report({54: 0x00}))
+        assert state.battery.level == 0
+
+    def test_level_capped_at_100(self):
+        # level nibble = 0xF (15) → min(15*10, 100) = 100
+        state = parse_bt(_make_bt_report({54: 0x0F}))
+        assert state.battery.level == 100
 
 
 class TestAutoDetect:

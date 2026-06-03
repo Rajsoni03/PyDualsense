@@ -25,8 +25,14 @@ Offset  Len  Field
  34      4   Touch finger 0: contact(7=inactive, 6:0=id) | X_lo | X_hi(3:0)+Y_lo(3:0) | Y_hi
  38      4   Touch finger 1: same layout
  42      1   Touch timestamp counter
- 43      2   Battery: level(7:4) | status(3:0)
- 45     33   Reserved / padding
+ 43      1   AT status 0 (adaptive trigger effect status)
+ 44      1   AT status 1
+ 45      4   Host timestamp (uint32 LE)
+ 49      1   AT status 2
+ 50      4   Device timestamp (uint32 LE)
+ 54      1   Battery: status(7:4) | level(3:0)
+ 55      1   Status 1: headphone(0) / mic(1) flags
+ 56     18   Reserved / padding
  74      4   CRC-32 (not verified on input side)
 
 USB input report (report ID 0x01, 64 bytes) offsets start at 1 instead of 2
@@ -154,8 +160,8 @@ def _parse_touch_finger(data: bytes, offset: int) -> TouchFinger:
 
 
 def _parse_battery(raw: int) -> BatteryState:
-    level_raw = (raw >> 4) & 0x0F
-    status_raw = raw & 0x0F
+    status_raw = (raw >> 4) & 0x0F   # upper nibble = charge/plugged status
+    level_raw  =  raw       & 0x0F   # lower nibble = battery level  0–10
     level = min(level_raw * 10, 100)
     try:
         status = BatteryStatus(status_raw)
@@ -265,8 +271,8 @@ def _parse_common(data: bytes, stick_offset: int) -> InputState:
         state.touchpad.finger0 = _parse_touch_finger(data, tp_off)
         state.touchpad.finger1 = _parse_touch_finger(data, tp_off + 4)
 
-    # Battery (o + 41)
-    bat_off = o + 41
+    # Battery — absolute byte 54 for BT (o=2), 53 for USB (o=1)
+    bat_off = o + 52
     if len(data) > bat_off:
         state.battery = _parse_battery(data[bat_off])
 
