@@ -111,17 +111,26 @@ class PlayerLED(IntFlag):
     LED4 = 0x08
     LED5 = 0x10   # Player 5 (right-most)
 
-    # Convenience presets
+    ALL = 0x1F  # All five LEDs
+
+    # Convenience presets (symmetric PlayStation standard patterns)
     @classmethod
     def player(cls, n: int) -> "PlayerLED":
-        """Return the standard LED pattern for player n (1–4)."""
+        """Return the standard LED pattern for player n (1–4).
+
+        Matches the official PlayStation/DualSense convention:
+          1 → centre dot only        (0x04)
+          2 → two inner-symmetrical  (0x0A)
+          3 → alternating 1+3+5      (0x15)
+          4 → all except centre      (0x1B)
+        """
         patterns = {
-            1: cls.LED1,
-            2: cls.LED1 | cls.LED2,
-            3: cls.LED1 | cls.LED2 | cls.LED3,
-            4: cls.LED1 | cls.LED2 | cls.LED3 | cls.LED4,
+            1: 0x04,   # ··●··
+            2: 0x0A,   # ·●·●·
+            3: 0x15,   # ●·●·●
+            4: 0x1B,   # ●●·●●
         }
-        return patterns.get(n, cls.NONE)
+        return cls(patterns.get(n, cls.NONE))
 
 
 # ── Microphone LED ────────────────────────────────────────────────────────────
