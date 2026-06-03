@@ -121,6 +121,10 @@ ds.set_rumble(right=200, left=100)
 ds.set_rumble(0, 0)    # off
 ```
 
+> **Note:** The DualSense requires both `FLAG0_COMPATIBLE_VIBRATION` (bit 0) and
+> `FLAG0_HAPTICS_SELECT` (bit 1) to be set in `valid_flag0` to activate ERM motors.
+> The library sets both automatically — you do not need to handle this manually.
+
 #### `stop_rumble()`
 
 Stop both rumble motors.
@@ -361,19 +365,21 @@ from pydualsense.features.triggers import TriggerEffect
 ```python
 from pydualsense import PlayerLED
 
-PlayerLED.LED1          # 0x01
+PlayerLED.LED1          # 0x01  (left-most)
 PlayerLED.LED2          # 0x02
-PlayerLED.LED3          # 0x04
+PlayerLED.LED3          # 0x04  (centre)
 PlayerLED.LED4          # 0x08
-PlayerLED.LED5          # 0x10
+PlayerLED.LED5          # 0x10  (right-most)
+PlayerLED.ALL           # 0x1F  (all five)
 PlayerLED.NONE          # 0x00
 
-PlayerLED.player(1)     # LED1
-PlayerLED.player(2)     # LED1 | LED2
-PlayerLED.player(3)     # LED1 | LED2 | LED3
-PlayerLED.player(4)     # LED1 | LED2 | LED3 | LED4
+# Standard PlayStation symmetric patterns:
+PlayerLED.player(1)     # 0x04  ··●··  centre dot only
+PlayerLED.player(2)     # 0x0A  ·●·●·  two inner-symmetrical
+PlayerLED.player(3)     # 0x15  ●·●·●  alternating 1+3+5
+PlayerLED.player(4)     # 0x1B  ●●·●●  all except centre
 
-# Combine:
+# Combine arbitrary LEDs:
 mask = PlayerLED.LED2 | PlayerLED.LED4
 ds.set_player_leds(mask)
 ```

@@ -133,26 +133,26 @@ Sent from host to controller to update rumble, triggers, LEDs, and audio.
 Offset  Len  Type    Field
 ──────  ───  ──────  ──────────────────────────────────────────────────────
   0      1   u8      Report ID = 0x31
-  1      1   u8      Tag = 0x10
-  2      1   u8      valid_flag0   (see flag table)
-  3      1   u8      valid_flag1
-  4      1   u8      Motor right   (small, high-freq, 0–255)
-  5      1   u8      Motor left    (large, low-freq,  0–255)
-  6      4   u8[4]   Reserved
- 10      1   u8      Headphone audio enable  (1 = on)
- 11      1   u8      Headphone volume        (0–0x7F)
- 12      1   u8      Speaker audio enable    (1 = on)
- 13      1   u8      Speaker volume          (0–0x7F)
- 14      1   u8      Microphone volume       (0–0x7F)
- 15      1   u8      Audio enable bits
- 16      1   u8      Mic select              (0=internal, 1=headset, 2=both)
- 17      1   u8      Audio mute flags
- 18      9   u8[9]   Right (R2) trigger effect   (see trigger encoding)
- 27      9   u8[9]   Left  (L2) trigger effect
- 36      5   u8[5]   Reserved
+  1      1   u8      Sequence tag  (seq & 0x0F) << 4  — rolling 0–15
+  2      1   u8      Tag = 0x10
+  3      1   u8      valid_flag0   (see flag table)
+  4      1   u8      valid_flag1
+  5      1   u8      Motor right   (small, high-freq, 0–255)
+  6      1   u8      Motor left    (large, low-freq,  0–255)
+  7      1   u8      Headphone volume        (0–0x7F)
+  8      1   u8      Speaker volume          (0–0x7F)
+  9      1   u8      Microphone volume       (0–0x7F)
+ 10      1   u8      Audio control
+ 11      1   u8      Mute LED control
+ 12      1   u8      Power-save / mute control
+ 13     11   u8[11]  Right (R2) trigger effect  (1 mode byte + 10 param bytes)
+ 24     11   u8[11]  Left  (L2) trigger effect  (1 mode byte + 10 param bytes)
+ 35      4   u8[4]   Reserved
+ 39      1   u8      Haptic volume
+ 40      1   u8      Audio control 2
  41      1   u8      valid_flag2
  42      2   u8[2]   Reserved
- 44      1   u8      Lightbar setup  (0x01 = custom RGB, 0x02 = release)
+ 44      1   u8      Lightbar setup  (0x00 = custom RGB, 0x02 = release to default)
  45      1   u8      LED brightness  (0x00 = high, 0x01 = mid, 0x02 = low)
  46      1   u8      Player LEDs     (bitmask, bits 0–4 = LED 1–5)
  47      1   u8      Lightbar R
@@ -162,58 +162,74 @@ Offset  Len  Type    Field
  74      4   u32le   CRC-32
 ```
 
-### valid_flag0 — byte 2
+### valid_flag0 — byte 3
 
-| Bit | Constant                    | Effect                              |
-|-----|-----------------------------|-------------------------------------|
-| 0   | FLAG0_COMPATIBLE_VIBRATION  | Enable ERM (classic) rumble motors  |
-| 1   | FLAG0_HAPTICS_SELECT        | 0 = ERM, 1 = HD haptics             |
-| 2   | FLAG0_TRIGGER_R_EFFECT      | Enable right (R2) trigger effect    |
-| 3   | FLAG0_TRIGGER_L_EFFECT      | Enable left  (L2) trigger effect    |
-| 4   | FLAG0_HEADPHONE_VOLUME      | Update headphone volume             |
-| 5   | FLAG0_SPEAKER_VOLUME        | Update speaker volume               |
-| 6   | FLAG0_MIC_VOLUME            | Update microphone volume            |
-| 7   | FLAG0_AUDIO_CONTROL         | Enable audio control fields         |
+| Bit | Constant                    | Value  | Effect                                                   |
+|-----|-----------------------------|--------|----------------------------------------------------------|
+| 0   | FLAG0_COMPATIBLE_VIBRATION  | `0x01` | Enable ERM rumble motors                                 |
+| 1   | FLAG0_HAPTICS_SELECT        | `0x02` | 0 = ERM, 1 = HD haptics; **both bits 0+1 must be set for ERM rumble** |
+| 2   | FLAG0_TRIGGER_R_EFFECT      | `0x04` | Enable right (R2) trigger effect                         |
+| 3   | FLAG0_TRIGGER_L_EFFECT      | `0x08` | Enable left  (L2) trigger effect                         |
+| 4   | FLAG0_HEADPHONE_VOLUME      | `0x10` | Update headphone volume                                  |
+| 5   | FLAG0_SPEAKER_VOLUME        | `0x20` | Update speaker volume                                    |
+| 6   | FLAG0_MIC_VOLUME            | `0x40` | Update microphone volume                                 |
+| 7   | FLAG0_AUDIO_CONTROL         | `0x80` | Enable audio control fields                              |
 
-### valid_flag1 — byte 3
+> **Important:** ERM rumble requires **both** `FLAG0_COMPATIBLE_VIBRATION (0x01)` and
+> `FLAG0_HAPTICS_SELECT (0x02)` to be set.  Setting only bit 0 produces no physical vibration.
 
-| Bit | Effect                        |
-|-----|-------------------------------|
-| 0   | Control microphone-mute LED   |
-| 1   | Power-save mode               |
+### valid_flag1 — byte 4
+
+| Bit | Constant                | Value  | Effect                                            |
+|-----|-------------------------|--------|---------------------------------------------------|
+| 0   | FLAG1_MIC_MUTE_LED      | `0x01` | Control microphone-mute LED                       |
+| 1   | FLAG1_POWER_SAVE        | `0x02` | Power-save mode                                   |
+| 2   | FLAG1_LIGHTBAR_COLOR    | `0x04` | Apply custom lightbar RGB from bytes 47–49        |
+| 3   | FLAG1_LIGHTBAR_DEFAULT  | `0x08` | Release lightbar to controller default colour     |
+| 4   | FLAG1_PLAYER_LEDS       | `0x10` | Update player indicator LEDs from byte 46         |
+
+To set a custom lightbar colour: set bit 2 (`FLAG1_LIGHTBAR_COLOR`) and clear bit 3
+(`FLAG1_LIGHTBAR_DEFAULT`).
 
 ### valid_flag2 — byte 41
 
-| Bit | Effect                         |
-|-----|--------------------------------|
-| 0   | Update lightbar colour         |
-| 1   | Update LED brightness          |
-| 2   | Update player indicator LEDs   |
+| Bit | Constant              | Value  | Effect                  |
+|-----|-----------------------|--------|-------------------------|
+| 0   | FLAG2_LED_BRIGHTNESS  | `0x01` | Update LED brightness   |
 
-### Trigger effect encoding (9 bytes per trigger)
+### Trigger effect encoding (11 bytes per trigger)
+
+Each trigger block is **11 bytes**: 1 mode byte followed by 10 parameter bytes.
 
 ```
-Byte 0   = Mode (TriggerMode enum value)
-Bytes 1–8 = Mode-specific parameters
+Byte 0     = Mode ID (TriggerMode enum value)
+Bytes 1–10 = Mode-specific parameters (unused bytes = 0x00)
 ```
 
-#### Mode table
+#### Simple modes (used by the high-level API)
 
-| Mode ID | Name            | Byte 1    | Byte 2     | Byte 3     | Bytes 4–8 |
-|---------|-----------------|-----------|------------|------------|-----------|
-| `0x00`  | OFF             | —         | —          | —          | —         |
-| `0x01`  | FEEDBACK        | start pos | force      | —          | —         |
-| `0x02`  | WEAPON          | start pos | end pos    | force      | —         |
-| `0x03`  | VIBRATION       | position  | amplitude  | frequency  | —         |
-| `0x04`  | SLOPE_FEEDBACK  | start pos | end pos    | start force| end force |
-| `0x05`  | RIGID           | —         | —          | —          | —         |
-| `0x06`  | RIGID_A         | —         | —          | —          | —         |
-| `0x07`  | RIGID_B         | —         | —          | —          | —         |
-| `0x08`  | RIGID_AB        | —         | —          | —          | —         |
-| `0x0C`  | MULTI_POS       | pos0      | force0     | pos1       | force1, pos2, force2 |
+| Mode ID | Name       | param[0]  | param[1]   | param[2]   | Notes                         |
+|---------|------------|-----------|------------|------------|-------------------------------|
+| `0x01`  | FEEDBACK   | start pos | force      | —          | Resistive from start position |
+| `0x02`  | WEAPON     | start pos | end pos    | force      | Click at start, rigid to end  |
+| `0x05`  | OFF        | —         | —          | —          | No effect; returns to neutral |
+| `0x06`  | VIBRATION  | frequency | amplitude  | position   | Vibrate at set frequency      |
 
-All position and force values are `u8` (0–255).
-Frequency is `u8` (approximate Hz).
+All position, force, amplitude, and frequency values are `u8` (0–255).
+
+#### Official bit-packed modes (multi-zone effects)
+
+| Mode ID | Name           | Description                                   |
+|---------|----------------|-----------------------------------------------|
+| `0x21`  | FEEDBACK_FULL  | 10-zone bit-packed feedback (active_zones + force_zones) |
+| `0x25`  | WEAPON_FULL    | Official bit-packed weapon                    |
+| `0x26`  | VIBRATION_FULL | Official bit-packed vibration                 |
+
+`FEEDBACK_FULL` bit-packing (used internally for `slope` and `multi_pos` effects):
+```
+param[0–1]  = active_zones  (10-bit mask; bit i = zone i active)
+param[2–5]  = force_zones   (30-bit value; 3 bits per zone, value = strength − 1)
+```
 
 ---
 
@@ -274,11 +290,12 @@ Bit 4       = LED 5  (right-most)
 Bits 5–7    = unused
 ```
 
-Standard player assignments:
+Standard PlayStation symmetric patterns (`PlayerLED.player(n)`):
 
-| Player | LEDs lit  | Bitmask |
-|--------|-----------|---------|
-| P1     | 1         | `0x01`  |
-| P2     | 1, 2      | `0x03`  |
-| P3     | 1, 2, 3   | `0x07`  |
-| P4     | 1, 2, 3, 4| `0x0F`  |
+| Player | Pattern | LEDs active          | Bitmask |
+|--------|---------|----------------------|---------|
+| P1     | `··●··` | LED3 (centre)        | `0x04`  |
+| P2     | `·●·●·` | LED2, LED4           | `0x0A`  |
+| P3     | `●·●·●` | LED1, LED3, LED5     | `0x15`  |
+| P4     | `●●·●●` | LED1, LED2, LED4, LED5 | `0x1B` |
+| All    | `●●●●●` | All five LEDs        | `0x1F`  |

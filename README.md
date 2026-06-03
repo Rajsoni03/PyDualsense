@@ -27,16 +27,15 @@ OS-agnostic API built on `hidapi`.
 
 ### Adaptive Trigger Modes
 
-| Mode            | Description                                     |
-|-----------------|-------------------------------------------------|
-| `OFF`           | No resistance                                   |
-| `FEEDBACK`      | Resistive feedback from a start position        |
-| `WEAPON`        | Click/snap at start, rigid beyond               |
-| `VIBRATION`     | Vibrating effect at set frequency               |
-| `SLOPE_FEEDBACK`| Linearly increasing resistance                  |
-| `RIGID`         | Maximum constant resistance                     |
-| `RIGID_A/B/AB`  | Rigid variants                                  |
-| `MULTI_POS`     | Resistance at multiple discrete positions       |
+| Factory                  | Description                                              |
+|--------------------------|----------------------------------------------------------|
+| `TriggerEffect.off()`    | No resistance; trigger at neutral                        |
+| `TriggerEffect.feedback()` | Resistive feedback starting at a set position          |
+| `TriggerEffect.weapon()` | Click/snap at start position, rigid beyond               |
+| `TriggerEffect.vibration()` | Vibrating effect at configurable frequency            |
+| `TriggerEffect.slope()`  | Linearly increasing resistance from start to end         |
+| `TriggerEffect.rigid()`  | Maximum constant resistance from trigger start           |
+| `TriggerEffect.multi_pos()` | Resistance at up to 10 discrete positions             |
 
 ---
 
@@ -186,19 +185,22 @@ nx, ny  = apply_deadzone_circular(nx, ny, 0.10)
 
 ## Examples
 
-| Script                       | Demonstrates                                  |
-|------------------------------|-----------------------------------------------|
-| `examples/basic_input.py`    | All inputs printed to terminal                |
-| `examples/rumble_demo.py`    | Rumble motor patterns                         |
-| `examples/adaptive_triggers.py` | Every trigger mode with 2-second holds     |
-| `examples/led_colors.py`     | Rainbow sweep + named colour presets          |
-| `examples/touchpad_viz.py`   | ASCII visualisation of finger positions       |
-| `examples/motion_orientation.py` | Live gyro/accel readout in °/s and g     |
-| `examples/robotics_gamepad.py` | Differential-drive robot mapping stub       |
+| Script                           | Demonstrates                                                   |
+|----------------------------------|----------------------------------------------------------------|
+| `examples/basic_input.py`        | All inputs printed to terminal                                 |
+| `examples/rumble_demo.py`        | Rumble motor patterns (left LF / right HF)                    |
+| `examples/adaptive_triggers.py`  | Every trigger mode with timed holds                           |
+| `examples/led_colors.py`         | Rainbow sweep, named presets, player LEDs, mic LED            |
+| `examples/touchpad_viz.py`       | ASCII visualisation of dual-finger positions                   |
+| `examples/motion_orientation.py` | Live gyro/accel readout in °/s and g                          |
+| `examples/robotics_gamepad.py`   | Interactive terminal UI — 4 drive modes, adaptive triggers, touchpad, IMU |
+| `examples/asteroid_miner.py`     | Full terminal arcade game using every controller feature       |
 
 ```bash
 python examples/basic_input.py
 python examples/adaptive_triggers.py
+python examples/robotics_gamepad.py
+python examples/asteroid_miner.py
 ```
 
 ---

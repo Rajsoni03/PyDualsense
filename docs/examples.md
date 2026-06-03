@@ -117,30 +117,41 @@ python examples/adaptive_triggers.py
 
 ---
 
-## `led_colors.py` — Rainbow sweep and named colour presets
+## `led_colors.py` — Light bar, player LEDs and mic LED demo
 
-Three-phase light bar demo:
+Four-phase LED demo covering every indicator on the controller:
 
-1. **Rainbow sweep** — iterates HSV hue 0 → 1 in 60 steps (0.05 s per step)
-2. **Named presets** — shows each colour for 0.6 s with its RGB values printed
-3. **Player colours** — cycles through the four default player colours
+1. **Rainbow sweep** — iterates HSV hue 0 → 1 in 60 steps (0.05 s each)
+2. **Named colour presets** — cycles through 10 presets (0.6 s each) with RGB printed
+3. **Player indicator LEDs** — shows each standard player pattern (P1–P4), all five on, then off
+4. **Microphone mute LED** — demonstrates ON (solid amber), BLINK, then OFF
 
 **Key patterns:**
 
 ```python
 from pydualsense.utils.color import rgb_from_hsv, named_color
+from pydualsense import PlayerLED, MicLED
 
-# Compute a colour from hue/saturation/value (all 0–1)
+# Rainbow sweep via HSV
 r, g, b = rgb_from_hsv(hue, 1.0, 1.0)
 ds.set_led(r, g, b)
 
-# Use a named preset
+# Named colour preset
 r, g, b = named_color("orange")   # (255, 128, 0)
 ds.set_led(r, g, b)
 
-# Available names:
-# red, green, blue, white, off, yellow, cyan, magenta,
-# orange, purple, pink, player1, player2, player3, player4
+# Player indicator LEDs (symmetric PlayStation patterns)
+ds.set_player_leds(PlayerLED.player(1))   # ··●··  centre dot (0x04)
+ds.set_player_leds(PlayerLED.player(2))   # ·●·●·  two inner  (0x0A)
+ds.set_player_leds(PlayerLED.player(3))   # ●·●·●  alternating (0x15)
+ds.set_player_leds(PlayerLED.player(4))   # ●●·●●  all-but-centre (0x1B)
+ds.set_player_leds(PlayerLED.ALL)         # ●●●●●  all five   (0x1F)
+ds.set_player_leds(PlayerLED.NONE)        # off
+
+# Microphone LED
+ds.set_mic_led(MicLED.ON)     # solid amber
+ds.set_mic_led(MicLED.BLINK)  # blinking
+ds.set_mic_led(MicLED.OFF)    # off
 ```
 
 **Run:**
@@ -236,57 +247,139 @@ python examples/motion_orientation.py
 
 ---
 
-## `robotics_gamepad.py` — Differential-drive robot mapping
+## `robotics_gamepad.py` — Interactive terminal robotics gamepad
 
-A template for driving a robot with the DualSense controller.  Adapt the
-`drive()` stub to your actual motor interface (ROS publisher, serial command,
-GPIO PWM, etc.).
+A fully interactive terminal UI demonstrating adaptive triggers, touchpad
+visualisation, D-pad mode switching, IMU telemetry, rumble, and lightbar —
+all live-rendered in a 60-column box at ~50 fps.
 
-**Control mapping:**
+**Drive modes (D-Pad ↑↓←→):**
 
-| Input              | Robot action                          |
-|--------------------|---------------------------------------|
-| Left stick Y       | Forward / backward speed (−1 … +1)    |
-| Right stick X      | Turn rate (left / right, −1 … +1)     |
-| R2 analog          | Boost multiplier (0 = 50%, 1 = 100%)  |
-| Circle button      | Emergency stop                        |
-| Triangle button    | Toggle LED indicator                  |
+| Mode      | R2 feel                  | L2 feel         | Lightbar  | Player LEDs |
+|-----------|--------------------------|-----------------|-----------|-------------|
+| NORMAL    | Light feedback           | Weapon click    | Green     | P1 (centre) |
+| PRECISION | Slope 0→max              | Heavy feedback  | Blue      | P2          |
+| SPEED     | Engine vibration         | Weapon click    | Orange    | P3          |
+| CRAWL     | Rigid wall               | Rigid wall      | Purple    | P4          |
 
-**Differential drive math:**
+**Controls:**
 
-```python
-# After deadzone and normalisation:
-forward = -ny          # stick up = positive forward
-turn    = rx
-boost   = state.r2 / 255.0          # 0.0 … 1.0
-
-speed = 0.5 + 0.5 * boost           # 50–100 % speed range
-
-left_wheel  = (forward + turn) * speed
-right_wheel = (forward - turn) * speed
-```
+| Input        | Action                                     |
+|--------------|--------------------------------------------|
+| Left stick   | Forward / backward + steer                 |
+| R2           | Throttle (feel changes per drive mode)     |
+| L2           | Brake (weapon-click feel)                  |
+| D-Pad ↑↓←→  | Switch drive mode                          |
+| △ Triangle   | Cycle lightbar colour                      |
+| □ Square     | Rumble burst (hold = continuous)           |
+| ○ Circle     | Emergency stop (RIGID on both triggers)    |
+| ✕ Cross      | Quit                                       |
 
 **Key patterns demonstrated:**
 
 ```python
-# Circular deadzone (recommended for sticks)
-from pydualsense.utils.deadzone import apply_deadzone_circular
-nx, ny = state.left_stick.normalised()
-nx, ny = apply_deadzone_circular(nx, ny, threshold=0.10)
+# Per-mode adaptive trigger effects
+ds.set_trigger_effect("right", TriggerEffect.feedback(start=0, force=90))
+ds.set_trigger_effect("right", TriggerEffect.slope(start=0, end=255, start_force=30, end_force=220))
+ds.set_trigger_effect("right", TriggerEffect.vibration(position=0, amplitude=180, frequency=28))
+ds.set_trigger_effect("right", TriggerEffect.rigid())
 
-# R2 analog as a continuous 0–1 value
-boost = state.r2 / 255.0
+# Rising-edge detection (avoid repeat triggers on held buttons)
+if state.buttons.triangle and not prev_triangle:
+    ds.set_led(*next_color)
+prev_triangle = state.buttons.triangle
 
-# Emergency stop on button press
-if state.buttons.circle:
-    drive(0.0, 0.0)
+# Differential drive with R2 boost
+forward = -ny
+turn    = rx
+boost   = state.r2 / 255.0
+speed   = 0.5 + 0.5 * boost
+lw = forward * speed + turn * speed
+rw = forward * speed - turn * speed
 ```
-
-> **Note:** The `drive()` function in this script is a stub that does nothing.
-> Replace it with calls to your actual robot driver.  The comment in the
-> source shows the left/right wheel values you would forward to the motors.
 
 **Run:**
 ```bash
 python examples/robotics_gamepad.py
+```
+
+---
+
+## `asteroid_miner.py` — Full terminal arcade game
+
+A complete arcade game that exercises **every** DualSense hardware feature
+simultaneously.  The game runs in the terminal (80×27 lines) at 20 fps using
+a background `listen_async` thread and a main game loop.
+
+**Controller feature map:**
+
+| Feature          | In-game use                                                   |
+|------------------|---------------------------------------------------------------|
+| Lightbar         | HP colour: green→yellow→pulsing red; blue when shielded       |
+| Player LEDs      | Remaining lives — `PlayerLED.player(n)` symmetric patterns    |
+| Mic LED          | Shield ON=solid, cooldown=BLINK, inactive=OFF                 |
+| Rumble           | Collision burst; mining vibration proportional to R2          |
+| R2 adaptive      | Per-weapon feel (MINE/BLAST/LASER), vibration while boosting, rigid on game-over |
+| L2 adaptive      | Weapon click at brake threshold; feedback when shielded       |
+| Left stick       | Move ship (wraps map edges)                                   |
+| Right stick      | Aim direction (8-way, corrected for atan2 Y-axis convention)  |
+| L3 click         | Toggle gyro-tilt steering                                     |
+| R2 analog        | Hold near asteroid to mine (MINE weapon only)                 |
+| L2 analog        | Charge shield (click feel at 30% threshold)                   |
+| L1 / R1          | Rotate aim direction ±45°                                     |
+| △ Triangle       | Fire (MINE=single, BLAST=3-way spread, LASER=fast piercing)   |
+| ○ Circle         | Bomb — clears radius-5 around ship (8 s cooldown)             |
+| □ Square hold    | Engine boost (1.8× speed, R2 vibrates)                        |
+| ✕ Cross          | Quit                                                          |
+| D-Pad ◄/►        | Cycle weapon: MINE → BLAST → LASER                            |
+| Gyro             | Tilt-to-steer toggle via L3; X-axis tilt gauge shown on screen|
+| Touchpad         | Finger 0 → target reticle `T` on map; touchpad click = homing shot |
+| PS button        | Pause / unpause                                               |
+
+**Weapon differences:**
+
+| Weapon | Fire  | Bullet | Speed | Damage | R2 trigger feel       |
+|--------|-------|--------|-------|--------|-----------------------|
+| MINE   | △     | `.`    | 1.6×  | 1      | Light feedback        |
+| BLAST  | △     | `B`    | 1.4×  | 1 ×3   | Heavier pull feedback |
+| LASER  | △     | `\|`   | 2.8×  | 2 (piercing) | Slope build-up  |
+
+Only the MINE weapon allows R2 proximity mining.
+
+**Key architecture patterns:**
+
+```python
+# Background input thread + foreground game loop
+ds.listen_async(_on_input)   # callback runs in daemon thread
+while True:
+    _tick(dt)                # physics + game logic
+    _feedback(ds)            # trigger/rumble/LED updates
+    _render()                # terminal draw
+    time.sleep(remaining)    # maintain 20 fps
+
+# Per-weapon adaptive trigger feel (only updates on state change)
+fb_key = f"w{weapon_idx}"   # "w0", "w1", "w2"
+if fb_key != prev_fb_key:
+    if weapon_idx == 2:      # LASER
+        ds.set_trigger_effect("right", TriggerEffect.slope(0, 200, 60, 220))
+    elif weapon_idx == 1:    # BLAST
+        ds.set_trigger_effect("right", TriggerEffect.feedback(30, 140))
+    else:                    # MINE
+        ds.set_trigger_effect("right", TriggerEffect.feedback(0, 80))
+
+# Gyro tilt-to-steer
+if gyro_steer:
+    gx, gy, gz = state.gyro
+    ship_x = (ship_x + gx / 12000.0) % COLS
+    ship_y = (ship_y + gy / 12000.0) % ROWS
+
+# ANSI colour rendering (standard Python, no external libs)
+RST = "\033[0m"
+COLORS = {'@': "\033[1;36m", '*': "\033[31m", '|': "\033[1;93m", ...}
+colored_row = "  " + "  ".join(f"{COLORS.get(ch,'')}{ch}{RST}" for ch in row)
+```
+
+**Run:**
+```bash
+python examples/asteroid_miner.py
 ```
