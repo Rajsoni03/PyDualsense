@@ -40,7 +40,8 @@ from typing import List
 from .constants import (
     BT_OUTPUT_REPORT_ID, BT_OUTPUT_TAG, BT_OUTPUT_REPORT_LEN,
     TriggerMode,
-    FLAG0_COMPATIBLE_VIBRATION, FLAG0_TRIGGER_R_EFFECT, FLAG0_TRIGGER_L_EFFECT,
+    FLAG0_COMPATIBLE_VIBRATION, FLAG0_HAPTICS_SELECT,
+    FLAG0_TRIGGER_R_EFFECT, FLAG0_TRIGGER_L_EFFECT,
     FLAG0_HEADPHONE_VOLUME, FLAG0_SPEAKER_VOLUME, FLAG0_MIC_VOLUME,
     FLAG1_MIC_MUTE_LED, FLAG1_LIGHTBAR_COLOR, FLAG1_PLAYER_LEDS,
     FLAG2_LED_BRIGHTNESS,
@@ -191,7 +192,8 @@ class OutputReport:
         """Set ERM rumble motors.  right = small (HF), left = large (LF), 0–255."""
         self._buf[5] = max(0, min(255, right))
         self._buf[6] = max(0, min(255, left))
-        self._flag0 |= FLAG0_COMPATIBLE_VIBRATION
+        # Both bits required: bit0 enables motor values, bit1 selects ERM over HD haptics
+        self._flag0 |= FLAG0_COMPATIBLE_VIBRATION | FLAG0_HAPTICS_SELECT
 
     # ── Adaptive triggers ─────────────────────────────────────────────────────
 

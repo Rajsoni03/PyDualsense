@@ -6,7 +6,8 @@ import pytest
 from pydualsense.protocol.output_report import OutputReport
 from pydualsense.protocol.constants import (
     BT_OUTPUT_REPORT_LEN, BT_OUTPUT_REPORT_ID, BT_OUTPUT_TAG,
-    FLAG0_COMPATIBLE_VIBRATION, FLAG0_TRIGGER_R_EFFECT, FLAG0_TRIGGER_L_EFFECT,
+    FLAG0_COMPATIBLE_VIBRATION, FLAG0_HAPTICS_SELECT,
+    FLAG0_TRIGGER_R_EFFECT, FLAG0_TRIGGER_L_EFFECT,
     FLAG1_LIGHTBAR_COLOR, FLAG1_PLAYER_LEDS,
     TriggerMode,
 )
@@ -64,6 +65,7 @@ class TestRumble:
         out.set_rumble(100, 100)
         data = out.build()
         assert data[3] & FLAG0_COMPATIBLE_VIBRATION
+        assert data[3] & FLAG0_HAPTICS_SELECT
 
     def test_rumble_clamped(self):
         out = OutputReport()
