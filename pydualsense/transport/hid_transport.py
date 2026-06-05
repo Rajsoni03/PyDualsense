@@ -77,6 +77,19 @@ class HIDTransport(Transport):
         # if the OS doesn't add it automatically.  We always include it.
         return self._device.write(data)
 
+    def send_feature_report(self, report_id: int, data: bytes) -> None:
+        """Send a HID feature report.
+
+        Args:
+            report_id: The 1-byte feature report ID (e.g. 0x80).
+            data:      Payload bytes (NOT including the report ID — hidapi
+                       prepends it automatically when passed as data[0]).
+        """
+        if self._device is None:
+            raise RuntimeError("Device not open")
+        # hidapi send_feature_report expects the report ID as the first byte.
+        self._device.send_feature_report(bytes([report_id]) + data)
+
     @property
     def is_open(self) -> bool:
         return self._device is not None

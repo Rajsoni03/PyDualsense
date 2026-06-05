@@ -38,3 +38,21 @@ def append_crc(report: bytearray) -> None:
     """
     crc = crc32_bt(bytes(report))
     report[74:78] = crc
+
+
+def append_feature_report_crc(report_id: int, data: bytearray) -> None:
+    """Compute and write the CRC-32 into the last 4 bytes of *data* for a
+    Bluetooth feature report.
+
+    Seed differs from output reports: ``[0x53, report_id]`` (reference:
+    daidr/dualsense-tester crc32.util.ts ``fillFeatureReportChecksum``).
+
+    Args:
+        report_id: HID feature report ID (e.g. 0x80).
+        data:      Feature-report payload bytearray (excluding the report-ID
+                   prefix byte added by hidapi).  The last 4 bytes are
+                   overwritten with the little-endian CRC-32.
+    """
+    seed = bytes([0x53, report_id])
+    checksum = binascii.crc32(seed + bytes(data[:-4])) & 0xFFFFFFFF
+    data[-4:] = struct.pack("<I", checksum)
