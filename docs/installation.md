@@ -155,6 +155,28 @@ gyroscope and accelerometer data.
 
 ---
 
+## Optional: pygame for games
+
+Required to run the games in the `games/` directory.
+
+```bash
+pip install pygame
+```
+
+**Recommended Python version:** 3.12 or earlier.
+Python 3.14 has a known circular import issue with `pygame.font`.
+
+```bash
+# macOS — install Python 3.12 alongside your system Python
+brew install python@3.12
+python3.12 -m venv venv
+source venv/bin/activate
+pip install hid pygame
+python games/neon_racer/main.py
+```
+
+---
+
 ## Troubleshooting
 
 | Symptom                             | Fix                                                          |

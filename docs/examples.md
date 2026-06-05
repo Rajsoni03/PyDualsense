@@ -447,3 +447,86 @@ colored_row = "  " + "  ".join(f"{COLORS.get(ch,'')}{ch}{RST}" for ch in row)
 ```bash
 python examples/asteroid_miner.py
 ```
+
+---
+
+# Games
+
+Full pygame games in `games/`.  Require `pip install pygame`.
+
+---
+
+## `games/neon_racer/` — Neon Racer Split-Screen Racing
+
+A two-player split-screen arcade racer with a neon-glow aesthetic.
+Both players race on the same track (640 × 720 px each viewport) across
+3 laps.  Every DualSense hardware feature is wired to an in-game effect.
+
+### Running
+
+```bash
+python games/neon_racer/main.py
+```
+
+Keyboard fallback is always available (no controllers required):
+
+| Keys       | Player |
+|------------|--------|
+| W/A/S/D    | P1     |
+| ↑/←/↓/→   | P2     |
+| Shift      | P1 turbo |
+| Right Ctrl | P2 turbo |
+
+### Controller feature map
+
+| Feature           | In-game use                                                              |
+|-------------------|--------------------------------------------------------------------------|
+| R2 adaptive       | `slope()` resistance grows with speed; `vibration()` during turbo; `off()` on oil |
+| L2 adaptive       | `feedback()` normal braking; `rigid()` on wheel lock; `off()` on oil    |
+| Rumble (priority) | wall hit > lap complete > boost pad > gravel > turbo > oil (timed one-shots) |
+| Light bar         | HSV speed gradient blue→cyan→yellow→red; white flash on boost/lap       |
+| Player LEDs       | Set to player colour on race start                                       |
+| Mic LED           | Solid amber while turbo is active                                        |
+| Gyroscope         | Tilt-to-steer (touchpad click to toggle; 30% blend with stick)          |
+| Touchpad swipe    | Activate turbo boost                                                     |
+
+### Track surface zones
+
+| Surface | Effect                                              |
+|---------|-----------------------------------------------------|
+| Road    | Normal friction and speed                           |
+| Gravel  | Reduced grip and max speed; gravel rumble           |
+| Boost   | +15% speed burst on entry; white LED flash          |
+| Oil     | Low friction (understeer); L2/R2 `off()`; oil rumble|
+
+### Architecture
+
+```
+games/neon_racer/
+├── main.py              # pygame init, game loop
+├── game.py              # GameStateMachine (MENU/COUNTDOWN/RACING/PAUSED/RESULTS)
+├── car.py               # Arcade physics, turbo, lap tracking
+├── track.py             # Catmull-Rom spline, surface zones, collision
+├── renderer.py          # Split-screen camera, HUD, neon draw calls
+├── effects.py           # ParticleSystem, glow helpers, camera transform
+├── controller_bridge.py # DualSense / keyboard players, haptic queue
+└── constants.py         # All tuning values, enums, color presets
+```
+
+**Key patterns:**
+
+```python
+# Trigger updates gated by speed bucket (avoids redundant HID writes)
+if car.speed_bucket != car._last_speed_bucket:
+    player.update_triggers(car)
+    car._last_speed_bucket = car.speed_bucket
+
+# Priority haptic queue — highest priority event wins each frame
+HAPTIC_PRIORITY = {"wall": 8, "lap": 7, "boost": 6, "gravel": 5,
+                   "turbo": 4, "oil": 3, "countdown": 2, "go": 1}
+
+# HSV speed gradient for light bar
+hue = 0.65 - speed_frac * 0.65   # 240° (blue) → 0° (red)
+r, g, b = rgb_from_hsv(hue, 1.0, 1.0)
+ds.set_led(r, g, b)
+```

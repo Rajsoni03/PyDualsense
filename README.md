@@ -218,6 +218,46 @@ python examples/sound_test.py
 
 ---
 
+## Games
+
+Full pygame games that use every DualSense hardware feature simultaneously.
+Requires pygame:
+
+```bash
+pip install pygame
+```
+
+### Neon Racer — Split-Screen Racing
+
+Two-player split-screen arcade racer on a glowing neon track.
+
+```
+games/neon_racer/
+```
+
+**Controller features used:**
+
+| Feature           | In-game use                                                              |
+|-------------------|--------------------------------------------------------------------------|
+| R2 adaptive       | `slope()` resistance grows with speed; `vibration()` during turbo; `off()` on oil |
+| L2 adaptive       | `feedback()` normal braking; `rigid()` on wheel lock; `off()` on oil    |
+| Rumble            | Wall hits, lap completion, boost pads, gravel, turbo, oil (priority queue) |
+| Light bar         | HSV gradient blue→cyan→yellow→red by speed; event flashes               |
+| Player LEDs       | Per-player colour assignment on race start                               |
+| Mic LED           | Solid during turbo active                                                |
+| Gyroscope         | Optional tilt-steering (touchpad click to toggle, blended 30%)          |
+| Touchpad swipe    | Activate turbo boost                                                     |
+
+**Keyboard fallback** — works without controllers (WASD = P1, Arrow keys = P2).
+
+```bash
+python games/neon_racer/main.py
+```
+
+See [games/neon_racer/README.md](games/neon_racer/README.md) for full details.
+
+---
+
 ## Running Tests
 
 ```bash
