@@ -197,15 +197,142 @@ ds.set_mic_led(MicLED.OFF)
 
 ---
 
-### Audio
+### Audio — volume control
 
 #### `set_speaker_volume(volume)`
 
-Set built-in speaker volume (0–127).
+Set built-in speaker volume (0–255) and route audio output to the speaker.
+Also sets `audio_control = 0x30` and clears ERM rumble flags so the firmware
+processes the audio bytes.
 
 #### `set_headphone_volume(volume)`
 
-Set headphone output volume (0–127).
+Set headphone jack volume (0–255) and route audio to the 3.5 mm output.
+Sets `audio_control = 0x00`.
+
+#### `set_mic_volume(volume)`
+
+Set microphone input gain (0–255).
+
+---
+
+### Audio — USB waveout (feature report 0x80)
+
+These methods use the firmware test interface (`report 0x80`) to enable the
+audio signal path on a USB-connected controller.  Call after setting the
+desired volume and before routing OS audio to the DualSense audio device.
+
+#### `enable_speaker_audio()`
+
+Enable the built-in speaker via the waveout interface.  Mirrors
+`controlWaveOut(device, true, 'speaker')` from the reference implementation.
+
+```python
+ds.set_speaker_volume(200)
+ds.enable_speaker_audio()
+# Now play audio through the OS DualSense audio device
+```
+
+#### `enable_headphone_audio()`
+
+Enable the headphone jack via the waveout interface.
+
+```python
+ds.set_headphone_volume(180)
+ds.enable_headphone_audio()
+```
+
+#### `disable_audio()`
+
+Disable the audio waveout path.
+
+```python
+ds.disable_audio()
+```
+
+---
+
+### Audio — Bluetooth speaker streaming
+
+Streams Opus-encoded audio to the DualSense built-in speaker over Bluetooth
+using HID report `0x36`.
+
+**Requirements:**
+- `pip install cffi`
+- libopus native library (`brew install opus` on macOS, `apt install libopus-dev` on Linux)
+
+#### `stream_bt_speaker(source="tone", freq=440.0, amplitude=0.6, duration=None, in_device=None) → BTAudioStream`
+
+Start streaming audio to the controller speaker.
+
+| Parameter   | Type    | Default | Description                                              |
+|-------------|---------|---------|----------------------------------------------------------|
+| `source`    | `str`   | `"tone"`| `"tone"` — sine wave, or `"mic"` — host mic passthrough |
+| `freq`      | `float` | `440.0` | Tone frequency in Hz (source="tone" only)               |
+| `amplitude` | `float` | `0.6`   | Tone amplitude 0–1 (source="tone" only)                 |
+| `duration`  | `float` | `None`  | Auto-stop after this many seconds; `None` = until `stop_bt_speaker()` |
+| `in_device` | `int`   | `None`  | Input device index for source="mic"                     |
+
+Returns the `BTAudioStream` instance (already started).
+
+```python
+# Play a 440 Hz tone for 3 seconds
+stream = ds.stream_bt_speaker(source="tone", freq=440.0, duration=3.0)
+
+# Stream host microphone input to the controller speaker
+stream = ds.stream_bt_speaker(source="mic")
+ds.stop_bt_speaker()
+```
+
+> **Bluetooth mic note:** The DualSense microphone is only accessible over USB
+> (USB Audio Class interface).  There is no HID path to capture mic audio
+> over Bluetooth.
+
+#### `stop_bt_speaker()`
+
+Stop BT speaker streaming if running.
+
+#### `write_bt_audio_frame(opus_bytes, state_bytes)`
+
+Low-level: send one pre-encoded 10 ms Opus frame directly.
+
+| Parameter    | Type    | Description                                           |
+|--------------|---------|-------------------------------------------------------|
+| `opus_bytes` | `bytes` | 200-byte CBR Opus packet (padded to 200 if shorter)   |
+| `state_bytes`| `bytes` | 63-byte state from `make_bt_state_bytes()`            |
+
+---
+
+## `BTAudioStream`
+
+```python
+from pydualsense.features.bt_audio import BTAudioStream
+```
+
+Manages the background thread that encodes and sends audio frames to the
+controller.  Normally obtained via `DualSense.stream_bt_speaker()`.
+
+### Constructor
+
+```python
+BTAudioStream(send_fn, speaker_vol=100, rgb=(0, 0, 64))
+```
+
+| Parameter    | Type       | Description                                    |
+|--------------|------------|------------------------------------------------|
+| `send_fn`    | `callable` | `fn(opus_bytes, state_bytes)` — called per frame |
+| `speaker_vol`| `int`      | Speaker volume embedded in state bytes (0–255) |
+| `rgb`        | `tuple`    | Light-bar colour embedded in state bytes       |
+
+### Methods
+
+#### `start(source="tone", freq=440.0, amplitude=0.6, in_device=None)`
+
+Start the streaming thread.
+
+#### `stop()`
+
+Stop the streaming thread and wait for it to exit.
 
 ---
 
@@ -311,6 +438,25 @@ state.battery.level      # 0–100 (%)
 state.battery.charging   # bool
 state.battery.full       # bool
 state.battery.status     # BatteryStatus enum
+```
+
+### Audio jack / mic status
+
+```python
+state.headphone_connected   # bool — 3.5 mm jack inserted
+state.mic_connected         # bool — microphone detected (USB only)
+```
+
+Useful for switching between speaker and headphone output:
+
+```python
+state = ds.read()
+if state.headphone_connected:
+    ds.set_headphone_volume(180)
+    ds.enable_headphone_audio()
+else:
+    ds.set_speaker_volume(200)
+    ds.enable_speaker_audio()
 ```
 
 ---

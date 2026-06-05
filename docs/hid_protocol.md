@@ -233,6 +233,140 @@ param[2–5]  = force_zones   (30-bit value; 3 bits per zone, value = strength �
 
 ---
 
+### Audio routing — `audio_control` byte (offset 10)
+
+| Value  | Routing           |
+|--------|-------------------|
+| `0x30` | Built-in speaker  |
+| `0x00` | 3.5 mm headphone  |
+
+Set by `set_speaker_volume()` and `set_headphone_volume()` respectively.
+`FLAG0_AUDIO_CONTROL (0x80)` and the corresponding volume flag must also be set.
+ERM rumble flags (`FLAG0_COMPATIBLE_VIBRATION`, `FLAG0_HAPTICS_SELECT`) must be
+**clear** when sending audio bytes; the firmware ignores audio if rumble flags
+are set in the same report.
+
+---
+
+## Bluetooth Audio Report — `0x36` (398 bytes)
+
+Used to stream Opus-encoded audio to the DualSense built-in speaker over
+Bluetooth.  Sent via `hid.Device.write()` on the interrupt channel at
+approximately 100 packets/second (one 10 ms Opus frame per packet).
+
+```
+Offset  Len   Field
+──────  ────  ──────────────────────────────────────────────────
+  0      1    Report ID = 0x36
+  1      1    Sequence tag: (seq & 0x0F) << 4  (rolling 0–15)
+  2      1    Tag = 0x00
+  3      1    Tag = 0x00
+  4     63    Controller state (see Output Report 0x31, bytes 3–65)
+ 67      2    Reserved = 0x00 0x00
+ 69      1    Audio data marker = 0xFF
+ 70      2    Audio frame length (little-endian u16)
+ 72      2    Audio frame tag
+ 74      8    Reserved = 0x00 …
+ 82      2    Audio sequence counter (rolling 0–255)
+ 84      2    Reserved = 0x00 0x00
+ 86     200   Opus-encoded audio frame (CBR, padded to 200 bytes)
+286    108    Reserved / padding
+394      4    CRC-32 (see below)
+```
+
+### State bytes (offsets 4–66)
+
+The 63-byte state block embedded in the 0x36 report uses **Bluetooth-specific
+values** verified by the DS5Dongle project.  Key fields:
+
+| State offset | Value  | Meaning                                              |
+|--------------|--------|------------------------------------------------------|
+| 0            | `0xFD` | flag0 — all enable bits set                          |
+| 1            | `0xF7` | flag1                                                |
+| 4            | `0x7F` | headphone_vol                                        |
+| 5            | `0x64` | speaker_vol (default; override with actual volume)   |
+| 6            | `0xFF` | mic_vol                                              |
+| 7            | `0x09` | audio_ctrl — BT-specific value (NOT `0x30`)          |
+| 9            | `0x0F` | power_save_mute_ctrl                                 |
+| 37           | `0x0A` | audio_ctrl_2                                         |
+| 38           | `0x07` | valid_flag2                                          |
+| 41           | `0x02` | lightbar_setup                                       |
+| 42           | `0x01` | led_brightness                                       |
+| 44–46        | R/G/B  | lightbar colour                                      |
+
+Using the standard USB state values (e.g. `audio_ctrl = 0x30`) causes the
+controller to ignore the audio data silently.
+
+### Opus encoding parameters
+
+| Parameter       | Value                             |
+|-----------------|-----------------------------------|
+| Sample rate     | 48 000 Hz                         |
+| Channels        | 2 (stereo)                        |
+| Application     | OPUS_APPLICATION_AUDIO            |
+| Bitrate         | 160 000 bps (CBR)                 |
+| VBR             | Off (`OPUS_SET_VBR = 0`)          |
+| Frame size      | 480 samples = 10 ms               |
+| Max frame bytes | 200 (padded to exactly 200 bytes) |
+
+### CRC-32 for report 0x36
+
+Same algorithm as the standard output report CRC but with a different seed:
+
+```
+crc_input = bytes([0xA2]) + pkt[0:394]
+crc_value = binascii.crc32(crc_input) & 0xFFFFFFFF
+pkt[394:398] = struct.pack('<I', crc_value)
+```
+
+---
+
+## USB Feature Report — `0x80` (waveout control)
+
+Enables the audio signal path on USB-connected controllers via the firmware
+test interface.  Sent with `hid.Device.send_feature_report()`.
+
+Report layout: `[report_id=0x80, device_id, action_id, param0, param1, ...]`
+padded to 64 bytes total (63 data bytes + 1 report-ID byte prepended by hidapi).
+
+### Enable speaker (`controlWaveOut(device, true, 'speaker')`)
+
+**Step 1** — configure routing:
+```
+device_id = 0x06  (AUDIO)
+action_id = 0x04  (BUILTIN_MIC_CALIB_DATA_VERIFY)
+params[2]  = 0x08
+```
+
+**Step 2** — enable waveout (after 20 ms):
+```
+device_id  = 0x06
+action_id  = 0x02  (WAVEOUT_CTRL)
+params     = [1, 1, 0]
+```
+
+### Enable headphone (`controlWaveOut(device, true, 'headphone')`)
+
+**Step 1** — configure routing:
+```
+device_id  = 0x06
+action_id  = 0x04
+params[4]  = 0x04
+params[6]  = 0x06
+```
+
+**Step 2** — enable waveout (after 20 ms): same as speaker step 2.
+
+### Disable (`controlWaveOut(device, false)`)
+
+```
+device_id  = 0x06
+action_id  = 0x02
+params     = [0, 1, 0]
+```
+
+---
+
 ## CRC-32 (Bluetooth output only)
 
 Every BT output report must end with a valid CRC-32 or the controller

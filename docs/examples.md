@@ -305,6 +305,70 @@ python examples/robotics_gamepad.py
 
 ---
 
+## `sound_test.py` — Speaker, headphone, mic and Bluetooth audio
+
+Tests every audio path available on the connected controller.  The script
+auto-detects whether the controller is USB or Bluetooth and selects the
+appropriate test set.
+
+**USB path (controller connected via cable):**
+
+| Test              | What it does                                                          |
+|-------------------|-----------------------------------------------------------------------|
+| `test_speaker`    | Ramps speaker volume 0→200, enables waveout, plays OS audio for 3 s  |
+| `test_mic`        | Sets mic gain to 200, prints a prompt to speak into the controller    |
+| `test_headphone`  | Ramps headphone volume 0→180, enables headphone waveout               |
+| `test_headset_mic`| Checks `headphone_connected` and `mic_connected` status flags         |
+
+**Bluetooth path:**
+
+| Test               | What it does                                                         |
+|--------------------|----------------------------------------------------------------------|
+| `test_speaker_bt`  | Streams a 440 Hz Opus-encoded tone for 6 s via HID report 0x36      |
+| `test_mic_bt`      | Explains the BT mic limitation; offers `source="mic"` passthrough   |
+
+**Key patterns:**
+
+```python
+# USB: enable speaker waveout
+ds.set_speaker_volume(200)
+ds.enable_speaker_audio()
+# play through the OS DualSense audio device here
+
+# USB: enable headphone waveout
+ds.set_headphone_volume(180)
+ds.enable_headphone_audio()
+
+# BT: stream a sine tone
+stream = ds.stream_bt_speaker(source="tone", freq=440.0, duration=6.0)
+time.sleep(6)
+ds.stop_bt_speaker()
+
+# BT: pipe host mic to controller speaker
+stream = ds.stream_bt_speaker(source="mic")
+time.sleep(5)
+ds.stop_bt_speaker()
+
+# Check jack/mic status
+state = ds.read()
+print("Headphone:", state.headphone_connected)
+print("Mic:      ", state.mic_connected)
+```
+
+**Run:**
+```bash
+python examples/sound_test.py
+```
+
+**BT audio requirements:**
+```bash
+pip install cffi sounddevice
+brew install opus          # macOS
+sudo apt install libopus-dev   # Linux
+```
+
+---
+
 ## `asteroid_miner.py` — Full terminal arcade game
 
 A complete arcade game that exercises **every** DualSense hardware feature
