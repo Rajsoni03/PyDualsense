@@ -139,6 +139,8 @@ class InputState:
     battery: BatteryState = field(default_factory=BatteryState)
     sequence: int = 0
     timestamp: int = 0                              # sensor timestamp (µs)
+    headphone_connected: bool = False               # 3.5 mm jack has headphone/headset
+    mic_connected: bool = False                     # headset mic present on jack
 
 
 # ── Parsing helpers ───────────────────────────────────────────────────────────
@@ -275,5 +277,14 @@ def _parse_common(data: bytes, stick_offset: int) -> InputState:
     bat_off = o + 52
     if len(data) > bat_off:
         state.battery = _parse_battery(data[bat_off])
+
+    # Status 1 — absolute byte 55 for BT (o=2), 54 for USB (o=1)
+    # bit 0: headphone/headset plugged into 3.5 mm jack
+    # bit 1: headset mic present on the jack
+    status_off = o + 53
+    if len(data) > status_off:
+        status1 = data[status_off]
+        state.headphone_connected = bool(status1 & 0x01)
+        state.mic_connected       = bool(status1 & 0x02)
 
     return state

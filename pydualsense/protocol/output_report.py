@@ -43,10 +43,19 @@ from .constants import (
     FLAG0_COMPATIBLE_VIBRATION, FLAG0_HAPTICS_SELECT,
     FLAG0_TRIGGER_R_EFFECT, FLAG0_TRIGGER_L_EFFECT,
     FLAG0_HEADPHONE_VOLUME, FLAG0_SPEAKER_VOLUME, FLAG0_MIC_VOLUME,
+    FLAG0_AUDIO_CONTROL,
     FLAG1_MIC_MUTE_LED, FLAG1_LIGHTBAR_COLOR, FLAG1_PLAYER_LEDS,
     FLAG2_LED_BRIGHTNESS,
     MicLED,
 )
+
+# audio_control byte (offset 10) routing values.
+# Derived from the reference implementation (daidr/dualsense-tester):
+#   speaker  → (3 << 4) & 0xFF = 0x30
+#   headphone → (0 << 4) & 0xFF = 0x00
+AUDIO_CTRL_SPEAKER   = 0x30   # route audio to built-in speaker
+AUDIO_CTRL_HEADPHONE = 0x00   # route audio to 3.5 mm headphone jack
+
 from .crc import append_crc
 
 
@@ -265,21 +274,44 @@ class OutputReport:
         self._flag1 |= FLAG1_MIC_MUTE_LED
 
     # ── Audio ─────────────────────────────────────────────────────────────────
+    # Reference (daidr/dualsense-tester OutputPanel.vue):
+    #   speaker:   audioControl=0x30, flag0 |= SPEAKER_VOLUME|AUDIO_CONTROL,
+    #              flag0 &= ~(COMPATIBLE_VIBRATION|HAPTICS_SELECT)
+    #   headphone: audioControl=0x00, flag0 |= HEADPHONE_VOLUME|AUDIO_CONTROL,
+    #              flag0 &= ~(COMPATIBLE_VIBRATION|HAPTICS_SELECT)
+    # Mixing rumble flags into the same report causes the firmware to ignore
+    # the audio bytes entirely.
 
     def set_speaker_volume(self, volume: int) -> None:
-        """Set built-in speaker volume (0–0x7F)."""
-        self._buf[8] = max(0, min(0x7F, volume))
-        self._flag0 |= FLAG0_SPEAKER_VOLUME
+        """Set built-in speaker volume (0–255) and route audio to the speaker.
+
+        This also sets the audio_control byte to 0x30 (speaker routing) and
+        clears the ERM rumble flags so the firmware processes the audio bytes.
+        """
+        self._buf[8]  = max(0, min(255, volume))
+        self._buf[10] = AUDIO_CTRL_SPEAKER   # 0x30
+        self._flag0 = (
+            (self._flag0 | FLAG0_SPEAKER_VOLUME | FLAG0_AUDIO_CONTROL)
+            & ~(FLAG0_COMPATIBLE_VIBRATION | FLAG0_HAPTICS_SELECT)
+        )
 
     def set_mic_volume(self, volume: int) -> None:
-        """Set microphone volume (0–0x7F)."""
-        self._buf[9] = max(0, min(0x7F, volume))
+        """Set microphone input gain (0–255)."""
+        self._buf[9] = max(0, min(255, volume))
         self._flag0 |= FLAG0_MIC_VOLUME
 
     def set_headphone_volume(self, volume: int) -> None:
-        """Set headphone volume (0–0x7F)."""
-        self._buf[7] = max(0, min(0x7F, volume))
-        self._flag0 |= FLAG0_HEADPHONE_VOLUME
+        """Set headphone volume (0–255) and route audio to the headphone jack.
+
+        This also sets the audio_control byte to 0x00 (headphone routing) and
+        clears the ERM rumble flags so the firmware processes the audio bytes.
+        """
+        self._buf[7]  = max(0, min(255, volume))
+        self._buf[10] = AUDIO_CTRL_HEADPHONE  # 0x00
+        self._flag0 = (
+            (self._flag0 | FLAG0_HEADPHONE_VOLUME | FLAG0_AUDIO_CONTROL)
+            & ~(FLAG0_COMPATIBLE_VIBRATION | FLAG0_HAPTICS_SELECT)
+        )
 
     # ── Serialise ─────────────────────────────────────────────────────────────
 

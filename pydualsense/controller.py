@@ -42,7 +42,20 @@ from .protocol.constants import (
     DUALSENSE_VID, SUPPORTED_PIDS,
     BT_INPUT_REPORT_LEN,
 )
+from .protocol.crc import append_feature_report_crc
 from .features.triggers import TriggerEffect
+from .features.bt_audio import (
+    BTAudioStream, build_bt_audio_report, make_bt_state_bytes,
+    _HAS_OPUS,
+)
+
+# Feature report 0x80 — firmware test/audio interface
+# (matching daidr/dualsense-tester ds.util.ts controlWaveOut)
+_FEAT_REPORT_ID   = 0x80
+_FEAT_REPORT_SIZE = 63      # data bytes (excl. report-ID byte prepended by hidapi)
+_AUDIO_DEVICE_ID  = 6       # DualSenseTestDeviceId.AUDIO
+_ACTION_CALIB     = 4       # DualSenseTestActionId.BUILTIN_MIC_CALIB_DATA_VERIFY
+_ACTION_WAVEOUT   = 2       # DualSenseTestActionId.WAVEOUT_CTRL
 
 
 class DualSense:
@@ -55,6 +68,9 @@ class DualSense:
         self._lock = threading.Lock()
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._bt_audio_seq: int = 0
+        self._bt_pkt_ctr:   int = 0
+        self._bt_stream: Optional[BTAudioStream] = None
 
     # ── Connection ────────────────────────────────────────────────────────────
 
@@ -81,6 +97,7 @@ class DualSense:
     def disconnect(self) -> None:
         """Stop the event loop (if running) and close the HID device."""
         self.stop()
+        self.stop_bt_speaker()
         self._transport.close()
 
     # ── Reading ───────────────────────────────────────────────────────────────
@@ -214,6 +231,135 @@ class DualSense:
     def set_headphone_volume(self, volume: int) -> None:
         self._output.set_headphone_volume(volume)
         self._send()
+
+    def set_mic_volume(self, volume: int) -> None:
+        self._output.set_mic_volume(volume)
+        self._send()
+
+    # ── Audio waveout (feature report 0x80) ───────────────────────────────────
+
+    def _send_feature_report(self, payload: bytes) -> None:
+        """Pad *payload* to _FEAT_REPORT_SIZE, append BT CRC if needed, and send."""
+        data = bytearray(_FEAT_REPORT_SIZE)
+        data[:len(payload)] = payload
+        if self._transport.is_bluetooth:
+            append_feature_report_crc(_FEAT_REPORT_ID, data)
+        try:
+            self._transport.send_feature_report(_FEAT_REPORT_ID, bytes(data))
+        except Exception:
+            pass  # feature reports may not be supported on all platforms/firmwares
+
+    def enable_speaker_audio(self) -> None:
+        """Enable the built-in speaker audio path via the firmware test interface.
+
+        Mirrors ``controlWaveOut(device, true, 'speaker')`` from the reference
+        implementation (daidr/dualsense-tester ds.util.ts).  Must be called
+        after setting the speaker volume and before playing audio through the
+        OS audio device.
+        """
+        # Step 1: configure speaker routing (params[2] = 8)
+        params = bytearray(20)
+        params[2] = 8
+        self._send_feature_report(bytes([_AUDIO_DEVICE_ID, _ACTION_CALIB]) + bytes(params))
+        time.sleep(0.02)
+        # Step 2: enable waveout [enable=1, 1, 0]
+        self._send_feature_report(bytes([_AUDIO_DEVICE_ID, _ACTION_WAVEOUT, 1, 1, 0]))
+
+    def enable_headphone_audio(self) -> None:
+        """Enable the headphone jack audio path via the firmware test interface.
+
+        Mirrors ``controlWaveOut(device, true, 'headphone')``.
+        """
+        # Step 1: configure headphone routing (params[4]=4, params[6]=6)
+        params = bytearray(20)
+        params[4] = 4
+        params[6] = 6
+        self._send_feature_report(bytes([_AUDIO_DEVICE_ID, _ACTION_CALIB]) + bytes(params))
+        time.sleep(0.02)
+        # Step 2: enable waveout
+        self._send_feature_report(bytes([_AUDIO_DEVICE_ID, _ACTION_WAVEOUT, 1, 1, 0]))
+
+    def disable_audio(self) -> None:
+        """Disable the audio waveout — mirrors ``controlWaveOut(device, false)``."""
+        self._send_feature_report(bytes([_AUDIO_DEVICE_ID, _ACTION_WAVEOUT, 0, 1, 0]))
+
+    # ── Bluetooth audio (HID report 0x36) ────────────────────────────────────
+
+    def write_bt_audio_frame(self, opus_bytes: bytes, state_bytes: bytes) -> None:
+        """Send one 10 ms Opus frame to the DualSense speaker over BT.
+
+        Builds a 398-byte report 0x36 with CRC and writes it to the HID
+        interrupt channel via hidapi.
+
+        Args:
+            opus_bytes:  200-byte CBR Opus packet (padded to 200 if shorter).
+            state_bytes: 63-byte state from :func:`make_bt_state_bytes`.
+        """
+        pkt = build_bt_audio_report(
+            opus_bytes, state_bytes,
+            self._bt_audio_seq, self._bt_pkt_ctr,
+        )
+        self._bt_audio_seq = (self._bt_audio_seq + 1) & 0x0F
+        self._bt_pkt_ctr   = (self._bt_pkt_ctr   + 1) & 0xFF
+        self._transport.write(pkt)
+
+    def stream_bt_speaker(
+        self,
+        source: str = "tone",
+        freq: float = 440.0,
+        amplitude: float = 0.6,
+        duration: Optional[float] = None,
+        in_device: "Optional[int]" = None,
+    ) -> "BTAudioStream":
+        """Start streaming audio to the DualSense built-in speaker over BT.
+
+        Uses HID report 0x36 with Opus-encoded audio.  Requires:
+          - cffi (``pip install cffi``)
+          - libopus (``brew install opus`` on macOS)
+
+        Args:
+            source:    ``"tone"`` — sine wave tone, or
+                       ``"mic"``  — capture from *in_device* and play back.
+            freq:      Tone frequency Hz (source="tone" only).
+            amplitude: Tone amplitude 0–1 (source="tone" only).
+            duration:  Stop automatically after this many seconds (None = run
+                       until :meth:`stop_bt_speaker` is called).
+            in_device: Input device index for source="mic".
+
+        Returns:
+            The :class:`BTAudioStream` instance (already started).
+        """
+        if not _HAS_OPUS:
+            raise RuntimeError(
+                "cffi or libopus not available.  "
+                "pip install cffi && brew install opus"
+            )
+        if self._bt_stream is not None:
+            self._bt_stream.stop()
+        # Extract current lightbar colour from the output buffer
+        r = int(self._output._buf[47])
+        g = int(self._output._buf[48])
+        b = int(self._output._buf[49])
+        stream = BTAudioStream(
+            send_fn=self.write_bt_audio_frame,
+            speaker_vol=max(0, min(255, int(self._output._buf[8]))),
+            rgb=(r, g, b),
+        )
+        stream.start(source=source, freq=freq, amplitude=amplitude,
+                     in_device=in_device)
+        self._bt_stream = stream
+        if duration is not None:
+            def _auto_stop():
+                time.sleep(duration)
+                stream.stop()
+            threading.Thread(target=_auto_stop, daemon=True).start()
+        return stream
+
+    def stop_bt_speaker(self) -> None:
+        """Stop BT speaker streaming if running."""
+        if self._bt_stream is not None:
+            self._bt_stream.stop()
+            self._bt_stream = None
 
     # ── Context manager ───────────────────────────────────────────────────────
 
