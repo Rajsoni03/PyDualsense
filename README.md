@@ -18,12 +18,15 @@ OS-agnostic API built on `hidapi`.
 |                    | Dual-finger capacitive touchpad (1920 × 1080, per-finger tracking)    |
 |                    | Gyroscope X/Y/Z + Accelerometer X/Y/Z (ICM-42688-P IMU)             |
 |                    | Battery level (%) + charging status                                   |
+|                    | Headphone / jack connected status                                     |
 | **Output**         | ERM rumble motors (left = large/LF, right = small/HF, 0–255 each)   |
 |                    | Adaptive triggers — 10 modes with full parameter control              |
 |                    | RGB light bar (0–255 per channel)                                    |
 |                    | 5 player-indicator LEDs (bitmask)                                     |
 |                    | Microphone-mute LED (off / on / blink)                               |
-|                    | Speaker + microphone + headphone volume                               |
+|                    | Speaker + microphone + headphone volume (0–255 each)                 |
+|                    | **Bluetooth speaker streaming** — Opus-encoded audio via HID report 0x36 |
+|                    | **USB speaker/headphone** — waveout enable via feature report 0x80   |
 
 ### Adaptive Trigger Modes
 
@@ -136,8 +139,14 @@ ds.disconnect()
 | `set_led(r, g, b)`                         | Light-bar colour 0–255                           |
 | `set_player_leds(mask)`                    | Player indicator LEDs (PlayerLED bitmask)        |
 | `set_mic_led(MicLED)`                      | Microphone-mute LED                              |
-| `set_speaker_volume(vol)`                  | Built-in speaker 0–127                           |
-| `set_headphone_volume(vol)`                | Headphone output 0–127                           |
+| `set_speaker_volume(vol)`                  | Built-in speaker 0–255                           |
+| `set_headphone_volume(vol)`                | Headphone output 0–255                           |
+| `set_mic_volume(vol)`                      | Microphone gain 0–255                            |
+| `enable_speaker_audio()`                   | Enable USB speaker via feature report 0x80       |
+| `enable_headphone_audio()`                 | Enable USB headphone via feature report 0x80     |
+| `disable_audio()`                          | Disable USB audio waveout                        |
+| `stream_bt_speaker(source, …)`             | Stream Opus audio to BT speaker (returns BTAudioStream) |
+| `stop_bt_speaker()`                        | Stop BT audio stream                             |
 
 ### `InputState`
 
@@ -153,6 +162,8 @@ state.gyro.x / .y / .z           # raw int16
 state.accel.x / .y / .z          # raw int16
 state.battery.level              # 0–100 %
 state.battery.charging           # bool
+state.headphone_connected        # bool
+state.mic_connected              # bool
 ```
 
 ### `TriggerEffect` factories
@@ -195,12 +206,14 @@ nx, ny  = apply_deadzone_circular(nx, ny, 0.10)
 | `examples/motion_orientation.py` | Live gyro/accel readout in °/s and g                          |
 | `examples/robotics_gamepad.py`   | Interactive terminal UI — 4 drive modes, adaptive triggers, touchpad, IMU |
 | `examples/asteroid_miner.py`     | Full terminal arcade game using every controller feature       |
+| `examples/sound_test.py`         | Speaker, headphone, mic volume tests + BT Opus streaming demo  |
 
 ```bash
 python examples/basic_input.py
 python examples/adaptive_triggers.py
 python examples/robotics_gamepad.py
 python examples/asteroid_miner.py
+python examples/sound_test.py
 ```
 
 ---
@@ -241,11 +254,23 @@ Full documentation is in the [`docs/`](docs/) directory:
 
 ## Dependencies
 
-| Package | Purpose                          |
-|---------|----------------------------------|
-| `hid`   | Cross-platform HID (hidapi)      |
-| `numpy` | Optional: IMU filtering helpers  |
-| `pytest`| Testing                          |
+| Package     | Purpose                                       |
+|-------------|-----------------------------------------------|
+| `hid`       | Cross-platform HID (hidapi)                   |
+| `numpy`     | Optional: IMU filtering helpers               |
+| `pytest`    | Testing                                       |
+| `cffi`      | Optional: Bluetooth Opus audio streaming      |
+| `sounddevice` | Optional: mic-to-speaker passthrough (BT audio) |
+
+**Bluetooth speaker streaming** additionally requires the native libopus library:
+
+```bash
+# macOS
+brew install opus
+
+# Ubuntu / Debian
+sudo apt-get install libopus-dev
+```
 
 No BLE stack needed — DualSense uses **classic Bluetooth HID**.
 

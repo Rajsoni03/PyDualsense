@@ -203,6 +203,60 @@ Available names: `red`, `green`, `blue`, `white`, `off`, `yellow`, `cyan`,
 
 ---
 
+---
+
+## Audio
+
+### USB speaker / headphone
+
+```python
+with DualSense() as ds:
+    state = ds.read()
+
+    if state.headphone_connected:
+        ds.set_headphone_volume(180)
+        ds.enable_headphone_audio()
+        print("Headphone audio enabled — route OS audio to DualSense now")
+    else:
+        ds.set_speaker_volume(200)
+        ds.enable_speaker_audio()
+        print("Speaker audio enabled — route OS audio to DualSense now")
+```
+
+### Bluetooth speaker streaming
+
+Requires `cffi` and the native libopus library.
+
+```bash
+pip install cffi sounddevice
+brew install opus          # macOS
+sudo apt install libopus-dev   # Linux
+```
+
+```python
+import time
+from pydualsense import DualSense
+
+with DualSense() as ds:
+    # Play a 440 Hz tone for 5 seconds
+    ds.stream_bt_speaker(source="tone", freq=440.0, duration=5.0)
+    time.sleep(5)
+```
+
+Stream host microphone input to the controller speaker:
+
+```python
+with DualSense() as ds:
+    stream = ds.stream_bt_speaker(source="mic")
+    input("Press Enter to stop...")
+    ds.stop_bt_speaker()
+```
+
+> **Bluetooth mic:** The DualSense microphone requires a USB connection.
+> There is no HID path to capture mic audio over Bluetooth.
+
+---
+
 ## Next steps
 
 - [API Reference](api.md) — complete method and class documentation
